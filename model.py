@@ -88,7 +88,7 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}/{num_epochs} Loss: {epoch_loss:.4f}")
 
 # Path where the model will be saved
-MODEL_PATH = 'crash_detector_resnet18_cpu_ready.pth'
+MODEL_PATH = 'model_weights.pth'
 
 # 1. Save the model's learned state dictionary (weights)
 # 2. Use map_location='cpu' to ensure cross-platform compatibility
