@@ -1,3 +1,5 @@
-Project for MAIS HACKS 2025.
+SAVMO (Save Me Officer!)
 
-A traffic detector software, which helps cities and companies detect lanes, cars present in lanes, and general statistics in regards to intersections.
+SAVMO is a model that detects is the driver crashed, based on live dashcam footage, along with a live dashboard - which recieves any crashes that occur. Along with important pictures from the event.
+
+This project is a submission for the MAIS HACKS hackathon.

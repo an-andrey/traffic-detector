@@ -6,7 +6,7 @@ from torchvision.models import resnet18
 from PIL import Image
 import cv2, json
 import argparse
-from crashresume import describe_crash_with_gemini
+from crashresume import create_report
 import os
 
 # --- 1. UTILITY: NUMPY MODE & TEMPORAL SMOOTHING FUNCTIONS ---
@@ -159,7 +159,7 @@ def main(video_path, model_path, fps_sampling=10, max_gap_size=3):
                     print("\n!!! SUSTAINED CRASH DETECTED !!!")
                     
                     # --- DIRECTORY SETUP ---
-                    UPLOAD_DIR = 'webiste/static/uploads'
+                    UPLOAD_DIR = 'website/static/uploads'
                     if not os.path.exists(UPLOAD_DIR):
                         os.makedirs(UPLOAD_DIR)
                         print(f"Created directory: {UPLOAD_DIR}")
@@ -210,10 +210,7 @@ def main(video_path, model_path, fps_sampling=10, max_gap_size=3):
                     # --- CALL GEMINI WITH THE LIST OF FILE PATHS ---
                     if all_frames_retrieved and len(report_file_paths) == 3:
                         # PASS THE LIST of 3 FILE PATHS
-                        report = describe_crash_with_gemini(report_file_paths) 
-                        print("\n*** AI INCIDENT REPORT ***")
-                        print(json.dumps(report, indent=4))
-                        print("**************************\n")
+                        create_report(report_file_paths) 
                     else:
                         print("Skipping AI report due to insufficient/failed frame retrieval.")
                         
