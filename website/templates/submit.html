@@ -1,0 +1,39 @@
+{% extends "layout.html" %} {% block content %}
+<h1 class="mb-4">Simulate New Report</h1>
+<p>Use this form to simulate a report coming in from the Gemini API.</p>
+
+<div class="card text-bg-dark border-secondary">
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label for="description" class="form-label">Report Description</label>
+        <textarea
+          class="form-control"
+          id="description"
+          name="description"
+          rows="5"
+          required
+        ></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="images" class="form-label">Upload Images</label>
+        <input
+          class="form-control"
+          type="file"
+          id="images"
+          name="images"
+          multiple
+        />
+        <div class="form-text">
+          You can select multiple images (e.g., hold Ctrl or Cmd while
+          clicking).
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Submit Report</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

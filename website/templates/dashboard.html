@@ -1,0 +1,76 @@
+{% extends "layout.html" %} {% block content %}
+<h1 class="mb-4">Incoming Reports</h1>
+
+{% for report in reports %}
+<div class="card text-bg-dark border-secondary mb-4 shadow">
+  <div class="row g-0">
+    <div class="col-md-5">
+      {% if report.images %}
+      <div
+        id="carousel-{{ loop.index }}"
+        class="carousel slide"
+        data-bs-ride="carousel"
+      >
+        <div class="carousel-indicators">
+          {% for image_url in report.images %}
+          <button
+            type="button"
+            data-bs-target="#carousel-{{ loop.parent.index }}"
+            data-bs-slide-to="{{ loop.index0 }}"
+            class="{% if loop.first %}active{% endif %}"
+            aria-current="true"
+          ></button>
+          {% endfor %}
+        </div>
+
+        <div class="carousel-inner">
+          {% for image_url in report.images %}
+          <div class="carousel-item {% if loop.first %}active{% endif %}">
+            <img
+              src="{{ image_url }}"
+              class="d-block w-100"
+              alt="Report Image"
+            />
+          </div>
+          {% endfor %}
+        </div>
+
+        <button
+          class="carousel-control-prev"
+          type="button"
+          data-bs-target="#carousel-{{ loop.index }}"
+          data-bs-slide="prev"
+        >
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Previous</span>
+        </button>
+        <button
+          class="carousel-control-next"
+          type="button"
+          data-bs-target="#carousel-{{ loop.index }}"
+          data-bs-slide="next"
+        >
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Next</span>
+        </button>
+      </div>
+      {% else %}
+      <div
+        class="d-flex align-items-center justify-content-center h-100 bg-secondary text-light"
+      >
+        <p class="m-0">No Images Submitted</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="col-md-7">
+      <div class="card-body">
+        <h5 class="card-title">Report Description</h5>
+        <p class="card-text" style="white-space: pre-wrap">
+          {{ report.description }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %} {% endblock %}
