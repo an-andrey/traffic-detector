@@ -87,6 +87,19 @@ for epoch in range(num_epochs):
     epoch_loss = running_loss / len(train_dataset)
     print(f"Epoch {epoch+1}/{num_epochs} Loss: {epoch_loss:.4f}")
 
+# Path where the model will be saved
+MODEL_PATH = 'crash_detector_resnet18_cpu_ready.pth'
+
+# 1. Save the model's learned state dictionary (weights)
+# 2. Use map_location='cpu' to ensure cross-platform compatibility
+#    (this is essential for loading it on your personal PC later)
+torch.save(
+    model.state_dict(), 
+    MODEL_PATH, 
+    _use_new_zipfile_serialization=False
+)
+print(f"\nModel weights saved successfully to {MODEL_PATH}")
+
 # Evaluation on test set
 model.eval()
 test_loss = 0.0
