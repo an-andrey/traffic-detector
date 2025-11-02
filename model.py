@@ -50,6 +50,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 num_epochs = 3  # adjust based on time and validation performance
 
 model.train()
+
 for epoch in range(num_epochs):
     running_loss = 0.0
     for images, labels in train_loader:

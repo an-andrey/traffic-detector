@@ -50,8 +50,8 @@ def smooth_predictions(raw_predictions, window_size=9):
     
     # Initialize the first few predictions (padding at the start)
     for i in range(padding):
-         # Use the mode of the available starting segment
-         smoothed_predictions[i] = numpy_mode(predictions[:i + padding + 1])
+        # Use the mode of the available starting segment
+        smoothed_predictions[i] = numpy_mode(predictions[:i + padding + 1])
 
     # Iterate through the sequence where a full window is possible
     for i in range(padding, len(predictions) - padding):
@@ -62,8 +62,8 @@ def smooth_predictions(raw_predictions, window_size=9):
 
     # Fill the last few predictions (padding at the end)
     for i in range(len(predictions) - padding, len(predictions)):
-         # Use the mode of the available ending segment
-         smoothed_predictions[i] = numpy_mode(predictions[i - padding:])
+        # Use the mode of the available ending segment
+        smoothed_predictions[i] = numpy_mode(predictions[i - padding:])
         
     return smoothed_predictions.tolist() # Final return as a list
 
@@ -91,7 +91,7 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+                            std=[0.229, 0.224, 0.225]),
     ])
     
     # --- Initialize Video Capture ---
@@ -103,7 +103,7 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
     # Calculate frame sampling interval
     original_fps = cap.get(cv2.CAP_PROP_FPS)
     if original_fps == 0: 
-         original_fps = 30 # Default if reading fails
+        original_fps = 30 # Default if reading fails
     frame_interval = max(1, int(round(original_fps / fps_sampling)))
     
     # Prediction tracking
@@ -137,7 +137,7 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
             # 3. Smooth the prediction based on the history
             smoothed = smooth_predictions(raw_predictions, window_size=smooth_window)
             if smoothed:
-                 current_prediction = smoothed[-1]
+                current_prediction = smoothed[-1]
         
         # --- Visualization Logic ---
         
@@ -192,6 +192,8 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
         # Exit if 'q' is pressed
         if cv2.waitKey(50) & 0xFF == ord('q'): # Changed to 1ms wait for smoother playback
             break
+        
+        cv2.imshow('Crash Detection Pipeline', frame)
 
         frame_idx += 1
 
@@ -214,3 +216,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     main(args.video_file, args.model_weights)
+
+else:
+    vid_num = 1194
+    main(f"data/videos/{vid_num:06d}.mp4", "model_weights.pth")
