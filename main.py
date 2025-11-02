@@ -4,112 +4,108 @@ import numpy as np
 from torchvision import transforms
 from torchvision.models import resnet18
 from PIL import Image
-import cv2
-import argparse
 import cv2, json
-from google import genai
-from google.genai import types
+import argparse
+from crashresume import describe_crash_with_gemini
+import os
 
 # --- 1. UTILITY: NUMPY MODE & TEMPORAL SMOOTHING FUNCTIONS ---
 
 def numpy_mode(arr):
-    """
-    Calculates the mode of a 1D NumPy array using bincount.
-    Assumes array contains non-negative integers (0s and 1s).
-    """
+    """Calculates the mode of a 1D NumPy array."""
     if len(arr) == 0:
-        return 0 # Default to 'No Crash' if array is empty
-    
-    # Count occurrences of each number (0 and 1)
+        return 0
     counts = np.bincount(arr)
-    
-    # The mode is the index with the highest count.
-    # np.argmax finds the index (0 or 1) of the largest count.
     return np.argmax(counts)
 
-def smooth_predictions(raw_predictions, window_size=9):
+def smooth_predictions(raw_predictions, max_gap_size=9):
     """
-    Applies a sliding window mode filter (temporal smoothing) to reduce flicker.
-    Uses the stable numpy_mode function.
+    Fills gaps of a specific size or less (up to max_gap_size) 
+    where a sequence of zeros is surrounded by ones.
     """
-    if window_size % 2 == 0:
-        window_size += 1 # Ensure odd size
-        
-    predictions = np.array(raw_predictions) # Convert to NumPy array
+    predictions = np.array(raw_predictions)
     
-    # Check for empty array
-    if len(predictions) == 0:
-        return []
-    
-    # If not enough predictions for a full window, return the list version
-    if len(predictions) < window_size:
+    if len(predictions) < 2:
         return predictions.tolist()
-        
-    smoothed_predictions = predictions.copy()
-    padding = window_size // 2
+
+    smoothed = predictions.copy()
+    start_of_gap = -1
     
-    # Initialize the first few predictions (padding at the start)
-    for i in range(padding):
-        # Use the mode of the available starting segment
-        smoothed_predictions[i] = numpy_mode(predictions[:i + padding + 1])
-
-    # Iterate through the sequence where a full window is possible
-    for i in range(padding, len(predictions) - padding):
-        start = i - padding
-        end = i + padding + 1
-        window = predictions[start:end]
-        smoothed_predictions[i] = numpy_mode(window)
-
-    # Fill the last few predictions (padding at the end)
-    for i in range(len(predictions) - padding, len(predictions)):
-        # Use the mode of the available ending segment
-        smoothed_predictions[i] = numpy_mode(predictions[i - padding:])
+    for i in range(len(predictions)):
+        # Look for the start of a gap (a '0') immediately following a '1'
+        if predictions[i] == 0:
+            if i > 0 and predictions[i-1] == 1:
+                start_of_gap = i
         
-    return smoothed_predictions.tolist() # Final return as a list
-
-# --- 2. MAIN EXECUTION PIPELINE ---
-def main(video_path, model_path, fps_sampling=10, smooth_window=5):
+        # Check for the end of a gap
+        if predictions[i] == 1:
+            if start_of_gap != -1:
+                gap_length = i - start_of_gap
+                
+                if 1 <= gap_length <= max_gap_size:
+                    # Fill the gap (the zeros only)
+                    smoothed[start_of_gap:i] = 1 
+                
+                start_of_gap = -1
+        
+        # Handle a gap that exceeds the max_gap_size
+        elif start_of_gap != -1:
+            current_gap_length = i - start_of_gap + 1
+            if current_gap_length > max_gap_size:
+                start_of_gap = -1
     
-    # Setup Device (Checks for local GPU, defaults to CPU)
+    return smoothed.tolist()
+
+# --- 2. MAIN EXECUTION PIPELINE (With Playback Delay) ---
+
+def main(video_path, model_path, fps_sampling=10, max_gap_size=3):
+    
+    # Setup Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     map_loc = 'cuda' if device.type == 'cuda' else 'cpu'
     print(f"Using device: {device}")
 
-    # --- Load Model Structure and Weights ---
+    # Load Model
     model = resnet18(weights=None)
     num_features = model.fc.in_features
     model.fc = nn.Linear(num_features, 2)
-    
-    # Load the state dictionary, mapping to the appropriate device
     model.load_state_dict(torch.load(model_path, map_location=map_loc))
     model.to(device)
     model.eval()
     print(f"Model loaded from {model_path}.")
 
-    # --- Define Transforms (MUST match training transforms) ---
+    # Define Transforms
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
+                             std=[0.229, 0.224, 0.225]),
     ])
     
-    # --- Initialize Video Capture ---
+    # Initialize Video Capture
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"ERROR: Cannot open video file: {video_path}")
         return
 
-    # Calculate frame sampling interval
     original_fps = cap.get(cv2.CAP_PROP_FPS)
     if original_fps == 0: 
-        original_fps = 30 # Default if reading fails
+         original_fps = 30
     frame_interval = max(1, int(round(original_fps / fps_sampling)))
     
-    # Prediction tracking
+    # Buffers and State
     raw_predictions = []
+    smoothed_predictions = [] 
+    frame_buffer = [] 
+    prediction_delay = max_gap_size
     
-    print(f"Original FPS: {original_fps:.2f}, Sampling every {frame_interval} frames to achieve ~{fps_sampling} FPS.")
+    # AI Reporting State Variables
+    CRASH_REPORT_THRESHOLD = 10 # Number of consecutive '1's required for a report
+    is_in_crash_event = False
+    
+    print(f"Original FPS: {original_fps:.2f}, Sampling every {frame_interval} frames (~{fps_sampling} FPS).")
+    print(f"Gap-filling up to size: {max_gap_size}. Playback delay: {prediction_delay} samples.")
+    print(f"AI Report Threshold: {CRASH_REPORT_THRESHOLD} consecutive '1's.")
 
     # --- Start Video Processing Loop ---
     frame_idx = 0
@@ -121,83 +117,165 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
             
         is_sampled_frame = (frame_idx % frame_interval == 0)
         
-        # --- Prediction Logic ---
-        current_prediction = 0 # Default display state
+        # 1. Frame Buffer Logic: Store the current frame
+        frame_buffer.append(frame)
+
+        # 2. Prediction Logic
         if is_sampled_frame:
-            # 1. Preprocess: BGR (OpenCV) to RGB (PIL/Torch)
+            # Predict
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             image_tensor = transform(image).unsqueeze(0).to(device)
 
-            # 2. Predict
             with torch.no_grad():
                 output = model(image_tensor)
                 _, pred = torch.max(output, 1)
                 raw_predictions.append(pred.item())
             
-            # 3. Smooth the prediction based on the history
-            smoothed = smooth_predictions(raw_predictions, window_size=smooth_window)
-            if smoothed:
-                current_prediction = smoothed[-1]
+            # Smooth the entire history
+            smoothed_predictions = smooth_predictions(raw_predictions, max_gap_size=max_gap_size)
+
         
-        # --- Visualization Logic ---
-        
-        # Only use the latest prediction if it exists; otherwise, use default (0/No Crash)
-        if raw_predictions:
-            display_prediction = "CRASH DETECTED" if current_prediction == 1 else "No Crash"
-        else:
-            display_prediction = "Loading..."
+        # 3. Playback and Display Logic
+        if len(smoothed_predictions) > prediction_delay:
             
-        color = (0, 0, 255) if display_prediction == "CRASH DETECTED" else (0, 255, 0) # Red/Green
-        
-        # --- START CORRECTED BLACK BLOCK LOGIC ---
-        font_scale = 1.5
-        font_thickness = 3
-        text_pos = (10, 50) # The desired bottom-left start point for the text
-        
-        # 1. Get the size of the text string
-        (text_width, text_height), baseline = cv2.getTextSize(
-            display_prediction, 
-            cv2.FONT_HERSHEY_SIMPLEX, 
-            font_scale, 
-            font_thickness
-        )
-        
-        # 2. Define the coordinates for the background rectangle
-        # Padding to give some space around the text
-        padding = 5 
-        
-        # Top-Left Corner (Start): X-coord is 10 - padding. Y-coord is above the text (50 - height - padding)
-        rect_start = (text_pos[0] - padding, text_pos[1] - text_height - baseline - padding)
-        
-        # Bottom-Right Corner (End): X-coord is 10 + width + padding. Y-coord is slightly below the text baseline (50 + padding)
-        rect_end = (text_pos[0] + text_width + padding, text_pos[1] + padding)
-        
-        # 3. Draw the filled black rectangle first (behind the text)
-        cv2.rectangle(frame, rect_start, rect_end, (0, 0, 0), -1) # (0,0,0) is black, -1 fills it
-        # --- END CORRECTED BLACK BLOCK LOGIC ---
-        
-        # Overlay the prediction text on the video frame
-        cv2.putText(frame, 
-                    display_prediction, 
-                    (10, 50), # Position
-                    cv2.FONT_HERSHEY_SIMPLEX, 
-                    1.5, # Font Scale
-                    color, 
-                    3, # Thickness
-                    cv2.LINE_AA)
-        
-        # Display the frame
-        cv2.imshow('Crash Detection Pipeline', frame)
-        
-        # Exit if 'q' is pressed
-        if cv2.waitKey(50) & 0xFF == ord('q'): # Changed to 1ms wait for smoother playback
-            break
-        
-        cv2.imshow('Crash Detection Pipeline', frame)
+            # Get the frame and prediction for the delayed display time
+            display_frame_bgr = frame_buffer.pop(0)
+            prediction_index = len(smoothed_predictions) - prediction_delay - 1
+            current_prediction = smoothed_predictions[prediction_index]
+            
+            # --- AI CRASH REPORTING LOGIC ---
+            
+            # Check for a sustained crash event using the smoothed predictions
+            current_history = smoothed_predictions[:len(smoothed_predictions) - prediction_delay]
+            
+            if len(current_history) >= CRASH_REPORT_THRESHOLD:
+                
+                # Check the last CRASH_REPORT_THRESHOLD predictions
+                last_predictions = current_history[-CRASH_REPORT_THRESHOLD:]
+                
+                if all(p == 1 for p in last_predictions) and not is_in_crash_event:
+                    # Sustained crash detected! Trigger the report.
+                    is_in_crash_event = True
+                    print("\n!!! SUSTAINED CRASH DETECTED !!!")
+                    
+                    # --- DIRECTORY SETUP ---
+                    UPLOAD_DIR = 'webiste/static/uploads'
+                    if not os.path.exists(UPLOAD_DIR):
+                        os.makedirs(UPLOAD_DIR)
+                        print(f"Created directory: {UPLOAD_DIR}")
+                    
+                    # --- CALCULATE INDICES FOR 3 FRAMES (as you requested) ---
+                    
+                    # This calculates the index in the 'current_history' (which is the same length as raw_predictions)
+                    middle_index_in_history = len(current_history) - (CRASH_REPORT_THRESHOLD // 2) - 1
+                    
+                    # We select: Middle - 2, Middle, Middle + 2 (as in your last code block)
+                    sampled_indices_to_report = [
+                        middle_index_in_history - 2,
+                        middle_index_in_history,
+                        middle_index_in_history + 2
+                    ]
+
+                    # Map sampled indices to the original video frame numbers
+                    frame_indices_to_report = [
+                        max(0, i * frame_interval) for i in sampled_indices_to_report
+                    ]
+                    
+                    # --- RETRIEVE, SAVE, AND COLLECT FILE PATHS ---
+                    report_file_paths = []
+                    all_frames_retrieved = True
+                    
+                    cap_report = cv2.VideoCapture(video_path)
+                    
+                    for i, frame_num in enumerate(frame_indices_to_report):
+                        cap_report.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+                        ret_r, report_frame_bgr = cap_report.read()
+                        
+                        if ret_r:
+                            # SAVE the image to the 'upload/' directory
+                            timestamp = int(cap_report.get(cv2.CAP_PROP_POS_MSEC))
+                            filename = f"crash_frame_{timestamp}ms_p{i+1}.jpg"
+                            file_path = os.path.join(UPLOAD_DIR, filename)
+                            
+                            cv2.imwrite(file_path, report_frame_bgr)
+                            report_file_paths.append(file_path)
+                            print(f"Saved frame {i+1} to: {file_path}")
+                        else:
+                            all_frames_retrieved = False
+                            print(f"Failed to re-read frame {frame_num} for reporting.")
+                            break
+                            
+                    cap_report.release() # Release the temporary capture
+                    
+                    # --- CALL GEMINI WITH THE LIST OF FILE PATHS ---
+                    if all_frames_retrieved and len(report_file_paths) == 3:
+                        # PASS THE LIST of 3 FILE PATHS
+                        report = describe_crash_with_gemini(report_file_paths) 
+                        print("\n*** AI INCIDENT REPORT ***")
+                        print(json.dumps(report, indent=4))
+                        print("**************************\n")
+                    else:
+                        print("Skipping AI report due to insufficient/failed frame retrieval.")
+                        
+                elif not all(p == 1 for p in last_predictions):
+                    # Crash event has ended
+                    is_in_crash_event = False
+            
+            # --- END AI CRASH REPORTING LOGIC ---
+            
+            # Visualization Logic (on the displayed frame)
+            display_prediction = "CRASH DETECTED" if current_prediction == 1 else "No Crash"
+            color = (0, 0, 255) if display_prediction == "CRASH DETECTED" else (0, 255, 0)
+            
+            font_scale = 1.5
+            font_thickness = 3
+            text_pos = (10, 50)
+            
+            (text_width, text_height), baseline = cv2.getTextSize(
+                display_prediction, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness
+            )
+            
+            padding = 5 
+            rect_start = (text_pos[0] - padding, text_pos[1] - text_height - baseline - padding)
+            rect_end = (text_pos[0] + text_width + padding, text_pos[1] + padding)
+            
+            cv2.rectangle(display_frame_bgr, rect_start, rect_end, (0, 0, 0), -1)
+            
+            cv2.putText(display_frame_bgr, 
+                        display_prediction, 
+                        (10, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 
+                        1.5, 
+                        color, 
+                        3, 
+                        cv2.LINE_AA)
+            
+            # Display the frame
+            cv2.imshow('Crash Detection Pipeline (Delayed)', display_frame_bgr)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'): 
+                break
 
         frame_idx += 1
 
-    # --- Cleanup ---
+    # --- Post-Processing and Cleanup (Remaining Frames) ---
+    print("\nProcessing remaining buffered frames...")
+
+    for i in range(len(frame_buffer)):
+        prediction_index = len(smoothed_predictions) - len(frame_buffer) + i
+        current_prediction = smoothed_predictions[prediction_index]
+        display_frame_bgr = frame_buffer[i]
+        
+        display_prediction = "CRASH DETECTED" if current_prediction == 1 else "No Crash"
+        color = (0, 0, 255) if display_prediction == "CRASH DETECTED" else (0, 255, 0)
+        
+        # Overlay logic (simplified)
+        cv2.putText(display_frame_bgr, display_prediction, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, 3, cv2.LINE_AA)
+        cv2.imshow('Crash Detection Pipeline (Delayed)', display_frame_bgr)
+        
+        if cv2.waitKey(int(1000/original_fps)) & 0xFF == ord('q'):
+            break
+
     print("Video finished. Press any key in the video window to close.")
     cv2.waitKey(0)
 
@@ -209,14 +287,13 @@ def main(video_path, model_path, fps_sampling=10, smooth_window=5):
 
 # --- 3. ARGPARSE SETUP ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Real-time crash detection from video file.")
+    parser = argparse.ArgumentParser(description="Real-time crash detection and AI reporting.")
     parser.add_argument('video_file', type=str, help='Path to the input MP4 video file.')
     parser.add_argument('model_weights', type=str, help='Path to the trained PyTorch .pth model weights file.')
+    parser.add_argument('--max_gap', type=int, default=3, help='Max size of zero gap to fill (in sampled frames). This also determines the playback delay.')
     
     args = parser.parse_args()
     
-    main(args.video_file, args.model_weights)
-
-else:
-    vid_num = 1194
-    main(f"data/videos/{vid_num:06d}.mp4", "model_weights.pth")
+    # Note: max_gap_size=5 is used in the user's final example call, so I'll use that 
+    # as the default here to match the user's intent, overriding the default of 3.
+    main(args.video_file, args.model_weights, max_gap_size=5)

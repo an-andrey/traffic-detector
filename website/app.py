@@ -23,7 +23,7 @@ def api_add_report():
     
     if not data:
         return jsonify({"status": "error", "message": "No JSON data received"}), 400
-        
+    
     description = data.get('description')
     original_image_paths = data.get('image_paths', []) # Default to empty list
     
