@@ -2,3 +2,4 @@ venv
 data
 test*.py
 .env
+website/static/uploads/*
