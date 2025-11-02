@@ -12,7 +12,7 @@ In order to run SAVMO on your own, clone this repo, and download all required li
 
 - `website/`: this holds the Flask application, that you should with `python app.py`.
 
-The website looks something like this: (README_images/website.png)
+The website looks something like this: ![website overview of SAVO](README_images/website.png)
 
 - `model_weights.py` : this holds the weights for our model.
 
@@ -20,7 +20,7 @@ The website looks something like this: (README_images/website.png)
   Takes in 2 arguments: the video file path and the weights. Once you got the website open, run main.py with a demo video, which will give you a live preview of the video, with an overlay of whether our model detects a crash. If a crash is detected - a report is sent out which should appear on the website once the page is refreshed.
 
 Here is how the live feed looks:
-(README_images/crash.png)
+![live feed of SAVO](README_images/crash.png)
 
 # Model Information
 
