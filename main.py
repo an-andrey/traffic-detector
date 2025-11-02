@@ -159,7 +159,7 @@ def main(video_path, model_path, fps_sampling=10, max_gap_size=3):
                     print("\n!!! SUSTAINED CRASH DETECTED !!!")
                     
                     # --- DIRECTORY SETUP ---
-                    UPLOAD_DIR = 'website/static/uploads'
+                    UPLOAD_DIR = 'report-uploads'
                     if not os.path.exists(UPLOAD_DIR):
                         os.makedirs(UPLOAD_DIR)
                         print(f"Created directory: {UPLOAD_DIR}")
