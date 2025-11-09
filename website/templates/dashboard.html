@@ -1,5 +1,24 @@
 {% extends "layout.html" %}
 
+{% block page_styles %}
+<style>
+/* This new class will style your report description box */
+.report-description-box {
+  max-height: 400px;  /* You can change this value */
+  overflow-y: auto; /* Adds a scrollbar only when needed */
+  
+  /* These rules give it the "inset" textbook look */
+  background-color: #2b2b2b; /* A slightly different dark shade */
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  
+  /* This keeps your line breaks and wrapping */
+  white-space: pre-wrap; 
+}
+</style>
+{% endblock %}
+
 {% block content %}
   <h1 class="mb-4">Incoming Reports</h1>
 
@@ -24,7 +43,7 @@
               <div class="carousel-inner">
                 {% for image_url in report.images %}
                   <div class="carousel-item {% if loop.first %}active{% endif %}">
-                    <img src="{{ image_url }}" class="d-block w-100" alt="Report Image">
+                    <img src="{{ url_for('static', filename='uploads/' + image_url) }}" class="d-block w-100" alt="Report Image">
                   </div>
                 {% endfor %}
               </div>
@@ -48,7 +67,9 @@
         <div class="col-md-7">
           <div class="card-body">
             <h5 class="card-title">Report Description</h5>
-            <p class="card-text" style="white-space: pre-wrap;">{{ report.description }}</p>
+            <div class="report-description-box">
+              {{ report.description | safe }}
+            </div>
           </div>
         </div>
         

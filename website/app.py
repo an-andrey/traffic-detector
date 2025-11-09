@@ -1,76 +1,91 @@
 import os
 import shutil
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from werkzeug.utils import secure_filename
+import queue
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from werkzeug.utils import secure_filename 
+import atexit
+import time
+import threading
 
-# --- Configuration ---
-UPLOAD_FOLDER = 'website/static/uploads'
+from video_thread import VideoProcessingThread
+from report_thread import ReportProcessingThread
+
+# setting paths
+UPLOAD_FOLDER = 'static/uploads'
+VIDEO_PATH = "test.mp4"
+
+
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# This will still be our simple in-memory "database"
-reports_db = []
+
+# Things that are shared between threads
+reports_db = [] #stores reports
+report_queue = queue.Queue()
+db_lock = threading.Lock()
+
+
+def report_handler(crash_description, image_paths):
+    
+    web_urls = []
+
+    with app.app_context(): #need context since this will be called by the background task
+        for path in image_paths: 
+            filename = os.path.basename(path) # extracts the file name from the path
+            
+            web_url = url_for('static', filename=f"uploads/{filename}")
+            web_urls.append(web_url)
+
+        report = {
+            "description": crash_description,
+            "images": web_urls
+        }
+
+        reports_db.append(report)
+
+
+# Starting the video thread to process the video in the background
+video_thread = VideoProcessingThread(VIDEO_PATH, report_queue)
+video_thread.start()
+
+report_thread = ReportProcessingThread(report_queue, reports_db, db_lock)
+report_thread.start()
+
+def shutdown_thread(): 
+    video_thread.stop()
+    video_thread.join() # makes sure thread is stopped before closing the main proccess
+
+atexit.register(shutdown_thread) # when closing main process, shut down the thread
 
 
 @app.route('/')
 def dashboard():
     return render_template('dashboard.html', reports=reversed(reports_db))
 
-@app.route('/api/add_report', methods=['POST'])
-def api_add_report():
-    # Get the JSON data sent from the client
-    data = request.get_json()
-    
-    if not data:
-        return jsonify({"status": "error", "message": "No JSON data received"}), 400
-    
-    description = data.get('description')
-    original_image_paths = data.get('image_paths', []) # Default to empty list
-    
-    web_image_urls = []
 
-    
-    for original_path in original_image_paths:
-        if not os.path.exists(original_path):
-            print(f"Warning: File not found at path {original_path}. Skipping.")
-            continue
-            
-        try:
-            # Get the original filename (e.g., "crash_scene_1.jpg")
-            filename = os.path.basename(original_path)
-            # Make sure the filename is safe for the web
-            safe_filename = secure_filename(filename)
-            
-            # Create the full destination path
-            # e.g., 'static/uploads/crash_scene_1.jpg'
-            destination_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
-            
-            # Copy the file
-            shutil.copy(original_path, destination_path)
-            
-            # Create the web-accessible URL
-            # e.g., '/static/uploads/crash_scene_1.jpg'
-            web_url = url_for('static', filename=f'uploads/{safe_filename}')
-            web_image_urls.append(web_url)
-            
-        except Exception as e:
-            print(f"Error copying file {original_path}: {e}")
+def stream_frames(): # grabs the latest frame from the video thread
+    while True:
+        frame = video_thread.get_frame()
 
-    # 3. Create the new report object (as a dictionary)
-    new_report = {
-        'description': description,
-        'images': web_image_urls  # The list of *new* web URLs
-    }
+        if frame is None: 
+            time.sleep(0.1) #give time for thread to process next frame
+            continue 
+
+        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
     
-    # 4. "Save" the report to our in-memory list
-    reports_db.append(new_report)
-    
-    # 5. Send a success response back to the client
-    return jsonify({
-        "status": "success",
-        "message": "Report added",
-        "report_id": len(reports_db) # Just as an example
-    }), 201
+
+
+@app.route("/video")
+def video(): 
+    return render_template("video.html")
+
+@app.route("/video_feed")
+def video_feed(): 
+
+    return Response(
+        stream_frames(),
+        mimetype='multipart/x-mixed-replace; boundary=frame'
+    )
 
 
 # --- Run the App ---
@@ -78,4 +93,4 @@ if __name__ == '__main__':
     # Ensure the 'static/uploads' directory exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     # Run in debug mode for development
-    app.run(debug=True)
+    app.run(debug=False, threaded=True)

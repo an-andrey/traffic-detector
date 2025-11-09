@@ -3,4 +3,5 @@ data
 test*.py
 .env
 website/static/uploads/*
-report-uploads
+__pycache__
+website/__pycache__
