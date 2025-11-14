@@ -4,6 +4,7 @@ from google.genai import types
 import requests
 import os
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -37,7 +38,7 @@ def create_report(image_path_list):
             print(f"Warning: Could not encode image at {path}. Skipping.")
             continue
             
-        # Add the image part to our contents list
+        # Add the image part to contents list
         image_part = types.Part.from_bytes(data=jpg.tobytes(), mime_type="image/jpeg")
         contents.append(image_part)
         successful_images += 1
@@ -47,11 +48,12 @@ def create_report(image_path_list):
 
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
     client = genai.Client(api_key=GEMINI_API_KEY)
+    start = time.time()
     resp = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         contents=contents,
     )
-
+    print(f"gemini took {time.time() - start} time to reply")
     if resp.text:
         return resp.text.strip().strip("```html").strip("```")
     else:

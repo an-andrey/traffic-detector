@@ -7,7 +7,7 @@ import os
 import onnxruntime as ort
 import numpy as np
 
-from video_processing_utils import load_transforms, smoothen_predictions, load_model_and_tranforms
+from utils.video_processing_utils import load_transforms, smoothen_predictions, load_model_and_tranforms
 from crash_summary import create_report
 
 # Creating a thread so the video continuisly runs in the background of the site
@@ -110,8 +110,6 @@ class VideoProcessingThread(threading.Thread):
                     prediction_index = np.argmax(output[0], axis=1)[0] #gets either 0 or 1 as the prediction
                     prediction = int(prediction_index)
 
-                    if prediction == 1: 
-                        print("CRASHH!!")
                     raw_predictions.append(prediction)
                     
                     smoothed_predictions = smoothen_predictions(raw_predictions, self.max_gap_size)
@@ -238,7 +236,6 @@ class VideoProcessingThread(threading.Thread):
     def get_frame(self): 
         with self.lock: 
             if self.output_frame is None: 
-                print("no output frame")
                 return None
             
             (flag, encodedImage) = cv2.imencode(".jpg", self.output_frame)

@@ -1,0 +1,84 @@
+{% extends "layout.html" %} {% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="text-center p-4 rounded bg-dark shadow-sm">
+        <h1>Welcome to SAVMO</h1>
+        <p class="lead">
+          A live crash-detection system. Please select a video source to begin
+          your session.
+        </p>
+      </div>
+
+      {% with messages = get_flashed_messages() %} {% if messages %}
+      <div class="alert alert-warning mt-4">{{ messages[0] }}</div>
+      {% endif %} {% endwith %}
+
+      <form
+        action="{{ url_for('start_thread') }}"
+        method="POST"
+        enctype="multipart/form-data"
+      >
+        <div class="card my-4">
+          <div class="card-body">
+            <h5 class="card-title">Upload Your Own Video</h5>
+            <p class="card-text">
+              Upload an MP4 file (max 100MB). The system will process it as a
+              live, looping feed.
+            </p>
+
+            <div class="input-group">
+              <input
+                class="form-control"
+                type="file"
+                id="file"
+                name="file"
+                accept="video/mp4"
+              />
+              <button type="submit" class="btn btn-primary">
+                Upload and Start
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-body">
+            <h5 class="card-title">...Or Use a Demo Video</h5>
+            <p class="card-text">
+              Click any of the pre-loaded videos to start a session immediately.
+            </p>
+
+            <div class="d-grid gap-2 d-md-flex">
+              <button
+                type="submit"
+                name="demo_video"
+                value="test.mp4"
+                class="btn btn-primary btn-lg"
+              >
+                Demo: Highway Pileup
+              </button>
+              <button
+                type="submit"
+                name="demo_video"
+                value="demo2.mp4"
+                class="btn btn-primary btn-lg"
+              >
+                Demo: Intersection
+              </button>
+              <button
+                type="submit"
+                name="demo_video"
+                value="demo3.mp4"
+                class="btn btn-primary btn-lg"
+              >
+                Demo: Night Driving
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

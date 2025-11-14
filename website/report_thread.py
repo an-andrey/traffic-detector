@@ -1,6 +1,7 @@
 import threading
 import os 
 from flask import url_for
+import time
 
 from crash_summary import create_report
 
@@ -14,13 +15,13 @@ class ReportProcessingThread(threading.Thread):
         self.db_lock = db_lock
 
     def run(self):
-
         while True: 
-            
             crash_image_paths = self.report_queue.get()
 
             try: 
-                crash_description = create_report(crash_image_paths)
+                current_time = time.time()
+                crash_description = create_report([crash_image_paths[0]])
+                print(f"making the report took {time.time() - current_time}")
 
                 image_filenames = [os.path.basename(path) for path in crash_image_paths]
 

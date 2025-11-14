@@ -1,8 +1,5 @@
 {% extends "layout.html" %} {% block page_styles %}
 <style>
-  /* I removed the 'body' styles, as the layout's
-    'data-bs-theme="dark"' already handles this.
-  */
   h1 {
     margin-top: 20px;
     text-align: center;
@@ -14,12 +11,7 @@
     border: 2px solid #555;
     background: #000;
   }
-  /*
-    *** IMPORTANT FIX ***
-    Instead of styling 'img', we style '.video-container img'.
-    This is more specific and won't break the 
-    '.carousel-item img' style on your dashboard page.
-  */
+
   .video-container img {
     width: 100%;
     height: auto;
@@ -28,7 +20,9 @@
 </style>
 {% endblock %} {% block content %}
 <h1>SAVMO Live Feed</h1>
+
 <div class="video-container">
   <img src="{{ url_for('video_feed') }}" />
 </div>
+
 {% endblock %}

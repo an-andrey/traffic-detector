@@ -22,7 +22,7 @@
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-danger shadow-sm">
       <div class="container-fluid">
-        <div class="navbar-brand fw-bold">SAVMO</div>
+        <a class="navbar-brand fw-bold" href="{{url_for('home')}}">SAVMO</a>
 
         <button
           class="navbar-toggler"
@@ -38,6 +38,7 @@
 
         <div class="collapse navbar-collapse" id="mainNavbar">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            {% if is_feed_live %}
             <li class="nav-item">
               <a
                 class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
@@ -53,6 +54,7 @@
                 >Video Feed</a
               >
             </li>
+            {% endif %}
           </ul>
         </div>
       </div>

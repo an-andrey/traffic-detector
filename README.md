@@ -2,25 +2,21 @@
 
 # Introduction
 
-SAVMO is a software suite built in 24hrs as part of the MAIS HACKS 2025 hackathon. The goal of SAVMO is to detect if the driver crashed, based on live dashcam footage. Once a crash is detected, SAVMO will generate a summary of the crash, and transfer it (along with key frames from the crash) to the SAVMO dashboard.
+Initially, SAVMO was built in 24hrs as part of the MAIS HACKS 2025 hackathon, and ended up winning "Best Hack For Impact" category! However, since then major changes were made to make this a proper project.
+
+The goal of SAVMO is to detect if the driver crashed, based on live dashcam footage. Once a crash is detected, SAVMO will generate a summary of the crash, and transfer it (along with key frames from the crash) to the SAVMO dashboard.
 
 The dashboard is ideally to be used by emergency responders, or could be sent out to close relatives of the owner of the dashcam in order to let them know that a crash occured.
 
 # Replication
 
-In order to run SAVMO on your own, clone this repo, and download all required libraries using `requirements.txt`. Here are the main elements of the project:
+In order to run SAVMO on your own, clone this repo, and download all required libraries using `requirements.txt`.
 
-- `website/`: this holds the Flask application, that you should with `python app.py`.
+Here are the main elements of the project:
 
-The website looks something like this: ![website overview of SAVO](README_images/website.png)
-
-- `model_weights.py` : this holds the weights for our model.
-
-- `main.py` :
-  Takes in 2 arguments: the video file path and the weights. Once you got the website open, run main.py with a demo video, which will give you a live preview of the video, with an overlay of whether our model detects a crash. If a crash is detected - a report is sent out which should appear on the website once the page is refreshed.
-
-Here is how the live feed looks:
-![live feed of SAVO](README_images/crash.png)
+- `/website`: this directory holds the full SAVMO website, which can be deployed as-is, by cloning the directory and running `python app.py`.
+- `model-creation/`: this holds all the necessary code that was used to train the model, export it as an ONNX model and testing if the ONNX model matches with the initial model.
+- `data-prep/`: this has all the code that was used in order to extract all the individual frames from our test and train videos and all necessary preparation for the model itself.
 
 # Model Information
 
